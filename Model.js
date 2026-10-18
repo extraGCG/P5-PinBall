@@ -2,7 +2,7 @@
 // ─── Model.js ─ Objetos del juego de Pinball (p5.js + Matter.js) ─────────────
 
 class Ball {
-  constructor(x, y, r = 12) {
+  constructor(x, y, r = 13) {
     this.r = r;
     this.body = Bodies.circle(x, y, r, {
       restitution: 0.6,
@@ -57,7 +57,7 @@ class Wall {
 }
 
 class Bumper {
-  constructor(x, y, r = 24) {
+  constructor(x, y, r = 26) {
     this.r = r;
     this.lit = 0;          // Cuadros restantes del destello
     this.body = Bodies.circle(x, y, r, {
@@ -88,7 +88,7 @@ class Bumper {
     dx /= len;
     dy /= len;
 
-    const kickSpeed = 10;  
+    const kickSpeed = 11;  
     Body.setVelocity(ballBody, { x: dx * kickSpeed, y: dy * kickSpeed });
   }
 
@@ -121,7 +121,7 @@ class Flipper {
   constructor(x, y, len, side) {
     this.side = side;
     this.len = len;
-    this.h = 14;
+    this.h = 15;
 
     this.restAngle  = side === 'left' ?  0.45 : -0.45;
     this.raiseAngle = side === 'left' ? -0.45 :  0.45;
@@ -186,9 +186,9 @@ class Flipper {
     push();
       noStroke();
       fill(50, 50, 90);
-      circle(this.pivotX, this.pivotY, 14);
+      circle(this.pivotX, this.pivotY, 15);
       fill(180, 200, 240);
-      circle(this.pivotX, this.pivotY, 7);
+      circle(this.pivotX, this.pivotY, 8);
     pop();
   }
 }
@@ -199,7 +199,7 @@ class Plunger {
     this.yTop = yTop;
     this.yBottom = yBottom;
     this.y = yBottom;       // Posición vertical actual
-    this.maxPull = 80;
+    this.maxPull = 87;
     this.pulling = false;
     this.power = 0;         // Potencia acumulada (de 0 a 1)
   }
@@ -209,7 +209,7 @@ class Plunger {
   release(ball) {
     if (!this.pulling) return;
     this.pulling = false;
-    const forceMag = 0.13 + 0.21 * this.power;
+    const forceMag = 0.16 + 0.26 * this.power;
     Body.applyForce(ball.body, ball.body.position, { x: 0, y: -forceMag });
     this.power = 0;
   }
@@ -226,24 +226,24 @@ class Plunger {
       // Riel del lanzador
       stroke(60);
       strokeWeight(4);
-      line(this.x, this.yTop, this.x, this.yBottom + this.maxPull + 20);
+      line(this.x, this.yTop, this.x, this.yBottom + this.maxPull + 22);
       // Agarradera / Mango
       noStroke();
       fill(220, 80, 80);
       rectMode(CENTER);
-      rect(this.x, this.y, 18, 28, 4);
+      rect(this.x, this.y, 20, 30, 4);
       // Barra medidora de potencia
       if (this.pulling) {
         fill(255, map(this.power, 0, 1, 255, 0), 0);
-        rect(this.x, this.yBottom + this.maxPull * 0.5 + 20,
-             8, this.power * this.maxPull, 2);
+        rect(this.x, this.yBottom + this.maxPull * 0.5 + 22,
+             9, this.power * this.maxPull, 2);
       }
     pop();
   }
 }
 
 class DiagonalWall extends Wall {
-  constructor(x, y, len, angle, thickness = 10, options = {}) {
+  constructor(x, y, len, angle, thickness = 11, options = {}) {
     super(x, y, len, thickness, options);
     Body.setAngle(this.body, angle);
     this.body.label = 'Wall';
@@ -251,7 +251,7 @@ class DiagonalWall extends Wall {
 }
 
 class PlungerGate extends DiagonalWall {
-  constructor(x = 368, y = 158, len = 54, angle = -0.7, thickness = 10) {
+  constructor(x = 400, y = 172, len = 59, angle = -0.7, thickness = 11) {
     super(x, y, len, angle, thickness, {
       restitution: 0.6,
       friction: 0.02
@@ -288,9 +288,9 @@ class PlungerGate extends DiagonalWall {
         noStroke();
         fill(70, 70, 110, 160);
         rectMode(CENTER);
-        rect(385, 140, 5, 24, 2);
+        rect(this.x + 18, this.y - 20, 5, 26, 2);
         fill(130, 130, 170);
-        circle(385, 128, 5);
+        circle(this.x + 18, this.y - 33, 5);
       pop();
     }
   }

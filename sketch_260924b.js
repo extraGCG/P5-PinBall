@@ -1,3 +1,6 @@
+
+// ─── sketch_260924b.js ─ Pinball (p5.js + Matter.js) ─────────────────────────
+
 const { Engine, World, Bodies, Body, Events,
         Constraint, Mouse, MouseConstraint } = Matter;
 
@@ -15,11 +18,14 @@ let gameOver = false;
 let launched = false;   // Indica si la bola ya está fuera del carril
 let highScore = 0;
 
-
-const W = 400, H = 700;
-const WALL_T = 16;          // Grosor de las paredes
-const PLUNGER_X = W - 30;   // Posición X del carril de lanzamiento a la derecha
-const FLIPPER_Y = H - 80;   // Posición Y de los pivotes de las aletas
+// Dimensiones del tablero
+const W = 434;
+const H = 760;
+const WALL_T = 17;
+const PLUNGER_LANE_W = 52;
+const PLUNGER_X = 401;
+const BALL_START_Y = 651;
+const FLIPPER_Y = 673;
 
 function setup() {
   createCanvas(W, H);
@@ -80,43 +86,43 @@ function buildTable() {
   // Pared exterior derecha
   walls.push(new Wall(W - T/2, H/2, T, H));
   // Separador del carril (pared divisoria entre el tablero y el lanzador)
-  walls.push(new Wall(W - 48, H/2 + 80, T/2, H - 160));
+  walls.push(new Wall(W - PLUNGER_LANE_W, 467, 8, 586));
   // Deflector diagonal superior derecho: desvía la bola disparada hacia el tablero
-  walls.push(new DiagonalWall(372, 68, 60, Math.PI / 4, 12));
+  walls.push(new DiagonalWall(404, 74, 65, Math.PI / 4, 13));
 
   // Guía diagonal inferior izquierda
-  walls.push(new DiagonalWall(49, 574, 95, 0.80));
+  walls.push(new DiagonalWall(53, 623, 103, 0.80));
   // Guía diagonal inferior derecha
-  walls.push(new DiagonalWall(315, 574, 95, -0.80));
+  walls.push(new DiagonalWall(342, 623, 103, -0.80));
 
   // Rampas laterales superiores
-  walls.push(new DiagonalWall(T + 30, 200, 120, 0.7));
-  walls.push(new DiagonalWall(W - 96, 200, 120, -0.6));
+  walls.push(new DiagonalWall(50, 217, 130, 0.7));
+  walls.push(new DiagonalWall(330, 217, 130, -0.6));
 
   // Bumpers
-  bumpers.push(new Bumper(150, 400, 22));
-  bumpers.push(new Bumper(210, 390, 22));
-  bumpers.push(new Bumper(270, 397, 22));
-  bumpers.push(new Bumper(180, 545, 18));
-  bumpers.push(new Bumper(248, 445, 18));
+  bumpers.push(new Bumper(163, 434, 24));
+  bumpers.push(new Bumper(228, 423, 24));
+  bumpers.push(new Bumper(293, 431, 24));
+  bumpers.push(new Bumper(195, 592, 20));
+  bumpers.push(new Bumper(269, 483, 20));
 
   // Flippers
-  const flipLen = 87;
+  const flipLen = 94;
   
-  flippers.push(new Flipper(90, FLIPPER_Y, flipLen, 'left'));
-  flippers.push(new Flipper(274, FLIPPER_Y, flipLen, 'right'));
+  flippers.push(new Flipper(98, FLIPPER_Y, flipLen, 'left'));
+  flippers.push(new Flipper(297, FLIPPER_Y, flipLen, 'right'));
 
-  //  Lanzador / Resorte de disparo 
-  plunger = new Plunger(PLUNGER_X, H * 0.25, H - 60);
+  // Lanzador / Resorte de disparo 
+  plunger = new Plunger(PLUNGER_X, 190, 695);
 
   if (plungerGate) plungerGate.open();
-  plungerGate = new PlungerGate(368, 158, 54, -0.7, 10);
+  plungerGate = new PlungerGate(400, 172, 59, -0.7, 11);
 }
 
 // ── Reiniciar / Nueva bola ──────────────────────────────────────────────────
 function resetBall() {
   if (ball) World.remove(world, ball.body);
-  ball = new Ball(PLUNGER_X, H - 100);
+  ball = new Ball(PLUNGER_X, BALL_START_Y);
   Body.setStatic(ball.body, true);   
   launched = false;
   if (plungerGate) plungerGate.open();
@@ -135,7 +141,7 @@ function draw() {
   if (ball && ball.body) {
     const v = ball.body.velocity;
     const speed = Math.hypot(v.x, v.y);
-    const MAX_SPEED = 20; // Límite de velocidad en px/cuadro
+    const MAX_SPEED = 22; // Límite de velocidad en px/cuadro
     if (speed > MAX_SPEED) {
       const factor = MAX_SPEED / speed;
       Body.setVelocity(ball.body, { x: v.x * factor, y: v.y * factor });
@@ -147,17 +153,25 @@ function draw() {
 
   // Cierra la compuerta una vez la bola supera la cima del carril 
   if (launched && plungerGate && !plungerGate.closed) {
-    if ((ball.body.position.x > W - 48 && ball.body.position.y <= 132) ||
-        (ball.body.position.x <= W - 48 && ball.body.position.y < 160)) {
+    if ((ball.body.position.x > W - PLUNGER_LANE_W && ball.body.position.y <= 143) ||
+        (ball.body.position.x <= W - PLUNGER_LANE_W && ball.body.position.y < 174)) {
       plungerGate.close();
     }
   }
 
-  // Detección de caída de la bola (por debajo del lienzo)
-  if (!gameOver && launched && ball.body.position.y > H + 40) {
-    const inPlungerLane = ball.body.position.x > W - 48;
+  // Si el tiro no tuvo fuerza suficiente y la bola cae de vuelta por el carril,
+  // se frena de una en su posición inicial sobre el lanzador como si tuviera una plataforma
+  if (launched && plungerGate && !plungerGate.closed && ball.body.position.x > W - PLUNGER_LANE_W) {
+    if (ball.body.velocity.y > 0 && ball.body.position.y >= BALL_START_Y) {
+      resetBall();
+    }
+  }
+
+  // Detección de caída de la bola (por debajo del lienzo en la zona de juego)
+  if (!gameOver && launched && ball.body.position.y > H + 43) {
+    const inPlungerLane = ball.body.position.x > W - PLUNGER_LANE_W;
     if (inPlungerLane) {
-      // La bola se devolvió por el carril del lanzador: tiro gratis, no descuenta vida
+      // Por seguridad, si llegara a sobrepasar el carril sin activar la plataforma
       resetBall();
     } else {
       lives--;
@@ -190,12 +204,13 @@ function drawBackground() {
   // Cuadrícula sutil que da textura al paño
   stroke(20, 20, 50);
   strokeWeight(1);
-  for (let y = 0; y < H; y += 20) line(0, y, W, y);
-  for (let x = 0; x < W; x += 20) line(x, 0, x, H);
+  const gridStep = 22;
+  for (let y = 0; y < H; y += gridStep) line(0, y, W, y);
+  for (let x = 0; x < W; x += gridStep) line(x, 0, x, H);
 
   noStroke();
   fill(5, 5, 20, 160);
-  rect(W - 48, 0, 48, H);
+  rect(W - PLUNGER_LANE_W, 0, PLUNGER_LANE_W, H);
 }
 
 function drawHUD() {
@@ -203,32 +218,32 @@ function drawHUD() {
   push();
     noStroke();
     fill(255, 220, 50);
-    textSize(22);
+    textSize(24);
     textAlign(LEFT, TOP);
-    text(`SCORE  ${score}`, 18, 12);
+    text(`SCORE  ${score}`, 20, 13);
 
     fill(180, 180, 255);
-    textSize(13);
-    text(`HI  ${highScore}`, 18, 38);
+    textSize(14);
+    text(`HI  ${highScore}`, 20, 41);
 
     // Vidas restantes
     fill(255, 80, 80);
-    textSize(13);
+    textSize(14);
     textAlign(RIGHT, TOP);
-    text(`LIVES  ${'♥ '.repeat(lives)}`, W - 56, 12);
+    text(`LIVES  ${'♥ '.repeat(lives)}`, W - 61, 13);
 
     // Indicaciones de controles 
     if (!launched) {
       fill(200, 200, 200, 180);
-      textSize(11);
+      textSize(12);
       textAlign(CENTER, BOTTOM);
-      text('Mantén [ESPACIO] para cargar · Suelta para disparar', W/2 - 24, H - 10);
+      text('Mantén [ESPACIO] para cargar · Suelta para disparar', W/2 - 26, H - 11);
     }
-    else{
+    else {
       fill(200, 200, 200, 180);
-      textSize(11);
+      textSize(12);
       textAlign(CENTER, BOTTOM);
-      text('Oprime [A] y [D] para jugar!', W/2 - 24, H - 10);
+      text('Oprime [A] y [D] para jugar!', W/2 - 26, H - 11);
     }
   pop();
 }
@@ -239,17 +254,17 @@ function drawGameOver() {
     rect(0, 0, W, H);
 
     fill(255, 80, 80);
-    textSize(48);
+    textSize(52);
     textAlign(CENTER, CENTER);
-    text('GAME OVER', W/2 - 24, H/2 - 30);
+    text('GAME OVER', W/2 - 26, H/2 - 33);
 
     fill(255, 220, 50);
-    textSize(22);
-    text(`Puntaje: ${score}`, W/2 - 24, H/2 + 20);
+    textSize(24);
+    text(`Puntaje: ${score}`, W/2 - 26, H/2 + 22);
 
     fill(200, 200, 200);
-    textSize(14);
-    text('Oprime R para reiniciar', W/2 - 24, H/2 + 60);
+    textSize(15);
+    text('Oprime R para reiniciar', W/2 - 26, H/2 + 65);
   pop();
 }
 
