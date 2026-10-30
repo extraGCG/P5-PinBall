@@ -19,12 +19,15 @@ class Ball {
     const { x, y } = this.body.position;
     push();
       translate(x, y);
-      // Bola plateada con brillo metálico
+      // Bola plateada con brillo metálico más brillante
       noStroke();
-      fill(200, 200, 220);
+      fill(220, 220, 240);
       circle(0, 0, this.r * 2);
-      fill(255, 255, 255, 180);
+      fill(255, 255, 255, 200);
       ellipse(-this.r * 0.3, -this.r * 0.35, this.r * 0.7, this.r * 0.5);
+      // Reflejo adicional
+      fill(255, 255, 255, 100);
+      ellipse(this.r * 0.2, -this.r * 0.2, this.r * 0.4, this.r * 0.3);
     pop();
   }
 }
@@ -98,11 +101,11 @@ class Bumper {
     push();
       translate(x, y);
       noStroke();
-      // Aro exterior
-      fill(this.lit > 0 ? color(255, 80, 20) : color(180, 20, 20));
+      // Aro exterior - colores más saturados
+      fill(this.lit > 0 ? color(255, 100, 40) : color(200, 40, 40));
       circle(0, 0, this.r * 2);
-      // Brillo interior
-      fill(this.lit > 0 ? color(255, 220, 100) : color(220, 60, 60));
+      // Brillo interior - más brillante
+      fill(this.lit > 0 ? color(255, 240, 150) : color(240, 80, 80));
       circle(0, 0, this.r);
       // Punto del centro
       fill(255);
@@ -174,20 +177,20 @@ class Flipper {
       rotate(this.body.angle);
       rectMode(CENTER);
       noStroke();
-      fill(20, 20, 60, 120);
+      fill(30, 30, 80, 140);
       rect(2, 2, this.len, this.h, 4);
-      fill(80, 160, 255);
+      fill(100, 180, 255);
       rect(0, 0, this.len, this.h, 4);
       // Brillo superior
-      fill(180, 220, 255, 160);
+      fill(200, 230, 255, 180);
       rect(0, -2, this.len * 0.8, 3, 2);
     pop();
 
     push();
       noStroke();
-      fill(50, 50, 90);
+      fill(60, 60, 100);
       circle(this.pivotX, this.pivotY, 15);
-      fill(180, 200, 240);
+      fill(200, 220, 255);
       circle(this.pivotX, this.pivotY, 8);
     pop();
   }
@@ -199,7 +202,7 @@ class Plunger {
     this.yTop = yTop;
     this.yBottom = yBottom;
     this.y = yBottom;       // Posición vertical actual
-    this.maxPull = 87;
+    this.maxPull = 81;
     this.pulling = false;
     this.power = 0;         // Potencia acumulada (de 0 a 1)
   }
@@ -209,7 +212,7 @@ class Plunger {
   release(ball) {
     if (!this.pulling) return;
     this.pulling = false;
-    const forceMag = 0.16 + 0.26 * this.power;
+    const forceMag = 0.05 + 0.5 * this.power;
     Body.applyForce(ball.body, ball.body.position, { x: 0, y: -forceMag });
     this.power = 0;
   }
@@ -224,15 +227,15 @@ class Plunger {
   draw() {
     push();
       // Riel del lanzador
-      stroke(60);
+      stroke(80, 80, 100);
       strokeWeight(4);
       line(this.x, this.yTop, this.x, this.yBottom + this.maxPull + 22);
-      // Agarradera / Mango
+      // Agarradera / Mango - más vibrante
       noStroke();
-      fill(220, 80, 80);
+      fill(240, 100, 100);
       rectMode(CENTER);
       rect(this.x, this.y, 20, 30, 4);
-      // Barra medidora de potencia
+      // Barra medidora de potencia - más brillante
       if (this.pulling) {
         fill(255, map(this.power, 0, 1, 255, 0), 0);
         rect(this.x, this.yBottom + this.maxPull * 0.5 + 22,
@@ -274,22 +277,22 @@ class PlungerGate extends DiagonalWall {
 
   draw() {
     if (this.closed) {
-      super.draw(color(235, 155, 35));
+      super.draw(color(255, 175, 55));
       push();
         translate(this.body.position.x, this.body.position.y);
         rotate(this.body.angle);
         rectMode(CENTER);
         noStroke();
-        fill(255, 225, 120);
+        fill(255, 240, 140);
         rect(0, -2, this.w * 0.8, 2, 1);
       pop();
     } else {
       push();
         noStroke();
-        fill(70, 70, 110, 160);
+        fill(90, 90, 130, 180);
         rectMode(CENTER);
         rect(this.x + 18, this.y - 20, 5, 26, 2);
-        fill(130, 130, 170);
+        fill(150, 150, 200);
         circle(this.x + 18, this.y - 33, 5);
       pop();
     }
