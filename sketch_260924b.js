@@ -29,6 +29,9 @@ let saucerHold = 0;        // Cuadros restantes con la bola retenida en la tramp
 let saucerCooldown = 0;    // Cuadros en que la trampa ignora la bola tras expulsarla
 let bucleStallFrames = 0;  // Cuadros seguidos dentro de un bucle (anti-atasco)
 
+let boostArmed = [true, true]; // Turbo [izq, der] listo; se rearma al salir de la zona
+let boostFlash = [0, 0];       // Cuadros restantes del destello de cada turbo
+
 const W = 434;
 const H = 760;
 const WALL_T = 17;
@@ -50,6 +53,12 @@ const SAUCER_Y    = 310;
 const SAUCER_R    = 14;
 const SAUCER_HOLD = 75;  // Cuadros que la trampa retiene la bola
 const STALL_LIMIT = 480; // Cuadros dentro de un bucle antes de empujar la bola
+
+const BOOST_SPEED = 16; // Velocidad vertical que da el turbo de los carriles externos
+const BOOSTERS = [
+  { x1: 22,  x2: 56,  y1: 270, y2: 340, cx: 40  }, // Turbo carril externo izquierdo
+  { x1: 336, x2: 376, y1: 285, y2: 355, cx: 356 }  // Turbo carril externo derecho
+];
 
 function setup() {
   createCanvas(W, H);
@@ -284,11 +293,6 @@ function buildTable() {
   bSideL.glowColor = color(255, 190, 50);
   bumpers.push(bSideL);
 
-  const bSideLU = new Bumper(20, 290, 9); // Rebotador lateral izquierdo sup
-  bSideLU.type = 'side';
-  bSideLU.scoreValue = 80;
-  bSideLU.glowColor = color(255, 190, 50);
-  bumpers.push(bSideLU);
 
   const bSideR = new Bumper(376, 430, 9); // Rebotador lateral derecho
   bSideR.type = 'side';
@@ -296,11 +300,6 @@ function buildTable() {
   bSideR.glowColor = color(255, 190, 50);
   bumpers.push(bSideR);
 
-  const bSideRU = new Bumper(338, 290, 9); // Rebotador lateral derecho sup
-  bSideRU.type = 'side';
-  bSideRU.scoreValue = 80;
-  bSideRU.glowColor = color(255, 190, 50);
-  bumpers.push(bSideRU);
 
   const outlaneL = new Wall(45, 625, 8, 110); // Separador carril salida izquierdo
   outlaneL.col = color(80, 150, 255);
@@ -370,7 +369,30 @@ function resetBall() {
   saucerHold = 0;
   saucerCooldown = 0;
   bucleStallFrames = 0;
+  boostArmed = [true, true];
   if (plungerGate) plungerGate.open();
+}
+
+function updateBoosters() {
+  if (!launched || !ball || !ball.body || saucerHold > 0) return;
+  const b = ball.body;
+  const { x, y } = b.position;
+  for (let i = 0; i < BOOSTERS.length; i++) {
+    const z = BOOSTERS[i];
+    if (x < z.x1 || x > z.x2 || y < z.y1 || y > z.y2) {
+      boostArmed[i] = true;
+      continue;
+    }
+    // Solo impulsa a la bola que ya va subiendo, así una bola que cae por el
+    // carril no es lanzada de vuelta hacia arriba
+    if (boostArmed[i] && b.velocity.y < -0.5) {
+      boostArmed[i] = false;
+      Body.setVelocity(b, { x: b.velocity.x * 0.3, y: -BOOST_SPEED });
+      boostFlash[i] = 20;
+      score += 25;
+      addPopup(z.cx, z.y1 - 10, '¡TURBO!', color(255, 160, 40));
+    }
+  }
 }
 
 function updateBucles() {
@@ -531,6 +553,7 @@ function draw() {
   }
 
   updateBucles();
+  updateBoosters();
 
   if (!gameOver && launched && ball.body.position.y > H + 43) {
     const inPlungerLane = ball.body.position.x > W - PLUNGER_LANE_W;
@@ -663,6 +686,20 @@ function drawBackground() {
     stroke(220, 120, 255, saucerHold > 0 ? 150 + 105 * sin(frameCount * 0.4) : 120);
     strokeWeight(saucerHold > 0 ? 3 : 2);
     circle(SAUCER_X, SAUCER_Y, SAUCER_R * 2 + 6);
+
+    // Flechas de los turbos: animadas en reposo, encendidas al activarse
+    strokeWeight(3);
+    for (let i = 0; i < BOOSTERS.length; i++) {
+      const z = BOOSTERS[i];
+      boostFlash[i] = max(0, boostFlash[i] - 1);
+      for (let k = 0; k < 3; k++) {
+        const ay = z.y2 - 14 - k * 20;
+        const wave = (frameCount * 0.1 + k) % 3 < 1;
+        stroke(255, 160, 40, boostFlash[i] > 0 ? 255 : (wave ? 160 : 60));
+        line(z.cx - 8, ay + 6, z.cx, ay - 2);
+        line(z.cx, ay - 2, z.cx + 8, ay + 6);
+      }
+    }
   pop();
 }
 
