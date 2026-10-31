@@ -24,6 +24,11 @@ let centerRampTrack = false;
 let rightLoopTrack = false;
 let topLanes = [false, false, false]; // Carriles [1] [2] [3] superiores
 
+let bucle1Stage = -1;      // -1 fuera, 0 entró, 1..3 pisos del zigzag recorridos
+let saucerHold = 0;        // Cuadros restantes con la bola retenida en la trampa
+let saucerCooldown = 0;    // Cuadros en que la trampa ignora la bola tras expulsarla
+let bucleStallFrames = 0;  // Cuadros seguidos dentro de un bucle (anti-atasco)
+
 const W = 434;
 const H = 760;
 const WALL_T = 17;
@@ -39,6 +44,12 @@ const LANE_DIV_R = 220; // Divisor derecho entre carril 2 y 3
 const LANE_L_X   = 140; // Borde izquierdo del carril 1
 const LANE_R_X   = 260; // Borde derecho del carril 3
 const LANE_Y     = 105; // Altura de los indicadores de carril
+
+const SAUCER_X    = 275; // Trampa (saucer) al fondo del bucle 3
+const SAUCER_Y    = 310;
+const SAUCER_R    = 14;
+const SAUCER_HOLD = 75;  // Cuadros que la trampa retiene la bola
+const STALL_LIMIT = 480; // Cuadros dentro de un bucle antes de empujar la bola
 
 function setup() {
   createCanvas(W, H);
@@ -201,25 +212,41 @@ function buildTable() {
   bTop.glowColor = color(255, 140, 40);
   bumpers.push(bTop);
 
-  const bBotL = new Bumper(155, 265, 10); // Bumper inferior izquierdo
-  bBotL.type = 'cluster';
-  bBotL.scoreValue = 200;
-  bBotL.glowColor = color(255, 140, 40);
-  bumpers.push(bBotL);
 
-  const bBotR = new Bumper(265, 255, 10); // Bumper inferior derecho
+  const zigCol = color(90, 230, 170);
+  const zig1 = new DiagonalWall(139, 165, 82, -0.32, 8); // Piso 1: baja hacia la izquierda
+  zig1.col = zigCol;
+  walls.push(zig1);
+
+  const zig2 = new DiagonalWall(103, 221, 82, 0.32, 8); // Piso 2: baja hacia la derecha
+  zig2.col = zigCol;
+  walls.push(zig2);
+
+  const zig3 = new DiagonalWall(139, 275, 82, -0.32, 8); // Piso 3: baja hacia la izquierda
+  zig3.col = zigCol;
+  walls.push(zig3);
+
+
+  const b3Col = color(220, 120, 255);
+  const defl3 = new DiagonalWall(242, 168, 43, 0.38, 8); // Deflector bajo el carril 3
+  defl3.col = b3Col;
+  walls.push(defl3);
+
+  const funnelL = new DiagonalWall(239, 288, 50, 0.70, 8); // Embudo izquierdo hacia la trampa
+  funnelL.col = b3Col;
+  walls.push(funnelL);
+
+  const funnelR = new DiagonalWall(311, 288, 50, -0.70, 8); // Embudo derecho hacia la trampa
+  funnelR.col = b3Col;
+  walls.push(funnelR);
+
+  const bBotR = new Bumper(288, 208, 10); // Bumper del bucle 3
   bBotR.type = 'cluster';
   bBotR.scoreValue = 200;
   bBotR.glowColor = color(255, 140, 40);
   bumpers.push(bBotR);
 
-  const bPocketL = new Bumper(100, 290, 7); // Diana izquierda
-  bPocketL.type = 'pocket';
-  bPocketL.scoreValue = 300;
-  bPocketL.glowColor = color(255, 70, 210);
-  bumpers.push(bPocketL);
-
-  const bPocketR = new Bumper(307, 290, 7); // Diana derecha
+  const bPocketR = new Bumper(326, 240, 7); // Diana incrustada en la pared del bucle 3
   bPocketR.type = 'pocket';
   bPocketR.scoreValue = 300;
   bPocketR.glowColor = color(255, 70, 210);
@@ -279,7 +306,7 @@ function buildTable() {
   outlaneL.col = color(80, 150, 255);
   walls.push(outlaneL);
 
-  const inlaneL = new DiagonalWall(67, 665, 62, 0.72, 8); // Rampa retorno izquierda
+  const inlaneL = new DiagonalWall(67, 665, 70, 0.72, 8); // Rampa retorno izquierda
   inlaneL.col = color(80, 150, 255);
   walls.push(inlaneL);
 
@@ -296,7 +323,7 @@ function buildTable() {
   outlaneR.col = color(80, 150, 255);
   walls.push(outlaneR);
 
-  const inlaneR = new DiagonalWall(328, 665, 62, -0.72, 8); // Rampa retorno derecha
+  const inlaneR = new DiagonalWall(328, 665, 70, -0.70, 8); // Rampa retorno derecha
   inlaneR.col = color(80, 150, 255);
   walls.push(inlaneR);
 
@@ -339,7 +366,80 @@ function resetBall() {
   leftLoopTrack   = false;
   centerRampTrack = false;
   rightLoopTrack  = false;
+  bucle1Stage = -1;
+  saucerHold = 0;
+  saucerCooldown = 0;
+  bucleStallFrames = 0;
   if (plungerGate) plungerGate.open();
+}
+
+function updateBucles() {
+  if (!launched || !ball || !ball.body) return;
+  const b  = ball.body;
+  const bx = b.position.x;
+  const by = b.position.y;
+
+  // Bucle 3: la trampa retiene la bola y luego la expulsa hacia abajo
+  if (saucerHold > 0) {
+    saucerHold--;
+    if (saucerHold === 0) {
+      Body.setStatic(b, false);
+      Body.setVelocity(b, { x: -2.5, y: 3 });
+      saucerCooldown = 30;
+    }
+    return;
+  }
+  if (saucerCooldown > 0) {
+    saucerCooldown--;
+  } else if (dist(bx, by, SAUCER_X, SAUCER_Y) < SAUCER_R && b.velocity.y > 0) {
+    Body.setStatic(b, true);
+    Body.setPosition(b, { x: SAUCER_X, y: SAUCER_Y });
+    saucerHold = SAUCER_HOLD;
+    bucleStallFrames = 0;
+    score += 750;
+    addPopup(SAUCER_X, SAUCER_Y - 30, '¡CAPTURA! +750', color(220, 120, 255));
+    return;
+  }
+
+  // Bucle 1: avanza de piso al pasar por cada hueco del zigzag
+  if (bx < 60 || bx > 180 || by < 120 || by > 350) {
+    bucle1Stage = -1;
+  } else if (bucle1Stage === -1 && by < 150 && bx > 75) {
+    bucle1Stage = 0;
+  } else if (bucle1Stage === 0 && bx < 100 && by > 185 && by < 215) {
+    bucle1Stage = 1;
+    score += 100;
+    addPopup(120, 195, 'ZIGZAG 1/3 +100', color(90, 230, 170));
+  } else if (bucle1Stage === 1 && bx > 142 && by > 240 && by < 268) {
+    bucle1Stage = 2;
+    score += 100;
+    addPopup(120, 250, 'ZIGZAG 2/3 +100', color(90, 230, 170));
+  } else if (bucle1Stage === 2 && bx < 100 && by > 295 && by < 340) {
+    bucle1Stage = 3;
+    score += 600;
+    addPopup(120, 305, '¡BUCLE 1! +600', color(90, 255, 190));
+  }
+
+  // Anti-atasco: si la bola pasa demasiado tiempo en un bucle, se le da un empujón
+  const inBucle1 = bx > 66 && bx < 176 && by > 128 && by < 345;
+  const inBucle3 = bx > 224 && bx < 326 && by > 128 && by < SAUCER_Y;
+  if (inBucle1 || inBucle3) {
+    bucleStallFrames++;
+    if (bucleStallFrames > STALL_LIMIT) {
+      bucleStallFrames = 0;
+      if (inBucle1) {
+        Body.setVelocity(b, { x: random(-4, 4), y: -6 });
+      } else {
+        // Dirige la bola hacia la trampa para cortar rebotes repetitivos
+        const dx = SAUCER_X - bx;
+        const dy = SAUCER_Y - by;
+        const len = Math.hypot(dx, dy) || 1;
+        Body.setVelocity(b, { x: dx / len * 7, y: dy / len * 7 });
+      }
+    }
+  } else {
+    bucleStallFrames = 0;
+  }
 }
 
 function draw() {
@@ -429,6 +529,8 @@ function draw() {
       }
     }
   }
+
+  updateBucles();
 
   if (!gameOver && launched && ball.body.position.y > H + 43) {
     const inPlungerLane = ball.body.position.x > W - PLUNGER_LANE_W;
@@ -545,6 +647,22 @@ function drawBackground() {
       textStyle(BOLD);
       text(i + 1, boxX[i], LANE_Y - 7);
     }
+
+    // Luces de progreso del zigzag (bucle 1), en cada hueco entre pisos
+    const zigLights = [[88, 198], [159, 252], [88, 306]];
+    noStroke();
+    for (let i = 0; i < 3; i++) {
+      fill(bucle1Stage > i ? color(90, 255, 190, 230) : color(40, 90, 80, 120));
+      circle(zigLights[i][0], zigLights[i][1], 8);
+    }
+
+    // Trampa (saucer) del bucle 3
+    fill(12, 0, 22);
+    circle(SAUCER_X, SAUCER_Y, SAUCER_R * 2 + 6);
+    noFill();
+    stroke(220, 120, 255, saucerHold > 0 ? 150 + 105 * sin(frameCount * 0.4) : 120);
+    strokeWeight(saucerHold > 0 ? 3 : 2);
+    circle(SAUCER_X, SAUCER_Y, SAUCER_R * 2 + 6);
   pop();
 }
 
